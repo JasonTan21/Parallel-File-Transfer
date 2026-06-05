@@ -1,0 +1,20 @@
+# Generated binaries
+server
+client
+operations
+
+# Generated data and output files
+*.dat
+result_min.txt
+result_max.txt
+result_sorted.dat
+execution_log.txt
+*.log
+
+# OS/editor files
+.DS_Store
+
+# Full reference / teammate-owned files are intentionally left untracked
+src/client.c
+src/operations.c
+run_test.sh
