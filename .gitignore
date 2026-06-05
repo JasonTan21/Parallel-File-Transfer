@@ -14,7 +14,7 @@ execution_log.txt
 # OS/editor files
 .DS_Store
 
-# Full reference / teammate-owned files are intentionally left untracked
+# Full reference files are intentionally left untracked in this responsibility commit
 src/client.c
 src/operations.c
 run_test.sh
