@@ -1,5 +1,4 @@
 #include <arpa/inet.h>
-#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +13,8 @@
 #define BACKLOG 16
 #define IO_BUFFER_SIZE 65536
 
+/* NOTE: send() may write only part of a buffer, so this helper keeps sending
+   until the full header or payload is delivered to the client. */
 static ssize_t send_all(int sockfd, const void *buffer, size_t length) {
     const char *data = buffer;
     size_t sent_total = 0;
@@ -29,6 +30,8 @@ static ssize_t send_all(int sockfd, const void *buffer, size_t length) {
     return (ssize_t)sent_total;
 }
 
+/* NOTE: The child process uses this to read the exact 8-byte chunk request:
+   total chunk count and requested sequence number. */
 static ssize_t recv_all(int sockfd, void *buffer, size_t length) {
     char *data = buffer;
     size_t received_total = 0;
@@ -45,12 +48,15 @@ static ssize_t recv_all(int sockfd, void *buffer, size_t length) {
     return (ssize_t)received_total;
 }
 
+/* NOTE: The metadata reply is 64 bits because the assignment file is >1GB. */
 static uint64_t host_to_network_u64(uint64_t value) {
     uint32_t high = htonl((uint32_t)(value >> 32));
     uint32_t low = htonl((uint32_t)(value & 0xffffffffu));
     return ((uint64_t)low << 32) | high;
 }
 
+/* NOTE: stat() is used instead of scanning the file, so even a 1GB+ file is
+   checked quickly before chunk offsets are calculated. */
 static off_t get_file_size(const char *path) {
     struct stat st;
 
@@ -61,6 +67,9 @@ static off_t get_file_size(const char *path) {
     return st.st_size;
 }
 
+/* NOTE: This is the producer work done by each server child. It calculates
+   the requested chunk offset, sends the required 8-byte header, then streams
+   only that chunk's payload over TCP. */
 static int send_chunk(int client_fd, const char *file_path,
                       uint32_t total_chunks, uint32_t chunk_number) {
     off_t file_size = get_file_size(file_path);
@@ -81,7 +90,12 @@ static int send_chunk(int client_fd, const char *file_path,
 
     chunk_size = (file_size + total_chunks - 1) / total_chunks;
     offset = (off_t)(chunk_number - 1) * chunk_size;
-    remaining = file_size - offset;
+    remaining = offset < file_size ? file_size - offset : 0;
+
+    if (chunk_size > UINT32_MAX || remaining > UINT32_MAX) {
+        fprintf(stderr, "Chunk payload is too large for the 32-bit header\n");
+        return -1;
+    }
 
     if (remaining < chunk_size) {
         payload_size = (uint32_t)remaining;
@@ -134,6 +148,8 @@ static int send_chunk(int client_fd, const char *file_path,
     return 0;
 }
 
+/* NOTE: Each accepted connection is handled by a forked child. The special
+   request (0, 0) asks for file size; normal requests ask for one chunk. */
 static void handle_client(int client_fd, const char *file_path) {
     uint32_t request[2];
     uint32_t total_chunks;
@@ -177,6 +193,7 @@ int main(int argc, char *argv[]) {
     const char *file_path;
     int server_fd;
     struct sockaddr_in server_addr;
+    int reuse = 1;
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <input_file>\n", argv[0]);
@@ -195,6 +212,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
+                   &reuse, sizeof(reuse)) < 0) {
+        perror("setsockopt");
+        close(server_fd);
+        return 1;
+    }
+
+    /* NOTE: bind() attaches the producer to TCP port 9090 so client children
+       know where to connect for chunk requests. */
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -231,12 +257,16 @@ int main(int argc, char *argv[]) {
         }
 
         if (child_pid == 0) {
+            /* NOTE: The child closes the listening socket because it only
+               serves this one client connection, then exits. */
             close(server_fd);
             handle_client(client_fd, file_path);
         }
 
         close(client_fd);
 
+        /* NOTE: Non-blocking wait reaps finished children and avoids zombies
+           while the server keeps accepting new connections. */
         while (waitpid(-1, NULL, WNOHANG) > 0) {
         }
     }
