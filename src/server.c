@@ -13,6 +13,9 @@
 #define BACKLOG 16
 #define IO_BUFFER_SIZE 65536
 
+/* LECTURE LINK: Week 14 pp. 57-62 (sockets) + Week 13 pp. 58-60 (I/O).
+   Server sockets can transfer fewer bytes than requested, so the producer
+   loops until the whole buffer is delivered. */
 /* NOTE: send() may write only part of a buffer, so this helper keeps sending
    until the full header or payload is delivered to the client. */
 static ssize_t send_all(int sockfd, const void *buffer, size_t length) {
@@ -30,6 +33,9 @@ static ssize_t send_all(int sockfd, const void *buffer, size_t length) {
     return (ssize_t)sent_total;
 }
 
+/* LECTURE LINK: Week 14 pp. 57-62 (sockets/message stream).
+   TCP is a byte stream, so one recv() is not guaranteed to receive the whole
+   request header. */
 /* NOTE: The child process uses this to read the exact 8-byte chunk request:
    total chunk count and requested sequence number. */
 static ssize_t recv_all(int sockfd, void *buffer, size_t length) {
@@ -48,6 +54,9 @@ static ssize_t recv_all(int sockfd, void *buffer, size_t length) {
     return (ssize_t)received_total;
 }
 
+/* LECTURE LINK: Week 14 pp. 57-62 (socket communication) + Week 13 p. 70
+   (kernel/network data structures). Network byte order makes multi-byte
+   values portable between machines. */
 /* NOTE: The metadata reply is 64 bits because the assignment file is >1GB. */
 static uint64_t host_to_network_u64(uint64_t value) {
     uint32_t high = htonl((uint32_t)(value >> 32));
@@ -55,6 +64,8 @@ static uint64_t host_to_network_u64(uint64_t value) {
     return ((uint64_t)low << 32) | high;
 }
 
+/* LECTURE LINK: Week 11 pp. 6-7 (file operations/open file metadata) +
+   Week 12 pp. 3, 10 (file-system structure and in-memory file structures). */
 /* NOTE: stat() is used instead of scanning the file, so even a 1GB+ file is
    checked quickly before chunk offsets are calculated. */
 static off_t get_file_size(const char *path) {
@@ -67,6 +78,9 @@ static off_t get_file_size(const char *path) {
     return st.st_size;
 }
 
+/* LECTURE LINK: Week 11 pp. 6, 15 (read/write/seek and direct access),
+   Week 14 pp. 57-62 (sockets), and Week 3 p. 32 (producer-consumer model).
+   This function is the server-side producer logic for one requested chunk. */
 /* NOTE: This is the producer work done by each server child. It calculates
    the requested chunk offset, sends the required 8-byte header, then streams
    only that chunk's payload over TCP. */
@@ -148,6 +162,8 @@ static int send_chunk(int client_fd, const char *file_path,
     return 0;
 }
 
+/* LECTURE LINK: Week 3 pp. 28-33, 38-40 (IPC, producer-consumer, message
+   passing) + Week 14 pp. 57-62 (socket system calls). */
 /* NOTE: Each accepted connection is handled by a forked child. The special
    request (0, 0) asks for file size; normal requests ask for one chunk. */
 static void handle_client(int client_fd, const char *file_path) {
@@ -189,6 +205,8 @@ static void handle_client(int client_fd, const char *file_path) {
     exit(0);
 }
 
+/* LECTURE LINK: Week 14 pp. 9-12, 57-62 (UNIX system calls and sockets) +
+   Week 3 pp. 16, 18, 20-22 (fork, wait, process termination). */
 int main(int argc, char *argv[]) {
     const char *file_path;
     int server_fd;
