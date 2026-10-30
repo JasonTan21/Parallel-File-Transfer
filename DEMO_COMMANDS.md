@@ -176,22 +176,3 @@ Create it with:
 ```
 
 Then run the client from another terminal.
-
-## 9. What To Explain During Demo
-
-Short explanation:
-
-```text
-The server is the producer. It listens on port 9090, accepts client connections,
-forks one child per connection, calculates the requested chunk offset, then sends
-an 8-byte header followed by the raw payload.
-
-The client is the consumer. It launches N child processes using ./client -p N.
-Each child receives one chunk, checks the sequence number, and writes the payload
-into a shared mmap reassembly buffer. Mutex, semaphore, and condition variable
-are used to synchronize the reassembly.
-
-After reassembly succeeds, the client automatically starts ./operations using
-fork() and exec(). The operations program uses pthreads for min, max, and
-parallel merge sort, then writes the required result files.
-```
