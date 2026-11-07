@@ -199,6 +199,7 @@ For additional demonstrations, including generation of a file larger than 1 GB, 
 
 This is an **Operating Systems / Systems Programming** project demonstrating concurrency, network communication, inter-process synchronization, and multithreaded processing.
 
-**Developer:** [JasonTan21](https://github.com/JasonTan21), [kaydenchong7-blip](https://github.com/kaydenchong7-blip), [Nadota](https://github.com/Nadota) 
+**Developer:** [JasonTan21](https://github.com/JasonTan21), [kaydenchong7-blip](https://github.com/kaydenchong7-blip), [Nadota](https://github.com/Nadota)
+
 **Portfolio:** [folio.theusefulhacker.my](https://folio.theusefulhacker.my/)  
 **Source:** [Parallel-File-Transfer](https://github.com/JasonTan21/Parallel-File-Transfer)
